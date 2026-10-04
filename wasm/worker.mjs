@@ -33,12 +33,16 @@ function beside(name) {
   return url.href;
 }
 
-const { Z88dk } = await import(beside('z88dk.mjs'));
+// Not awaited here: the handler below must be in place before this module
+// waits on anything, or a job posted meanwhile (the page posts as soon as it
+// creates the worker) would arrive with nobody listening, and be lost.
+const library = import(beside('z88dk.mjs'));
 
 /** The toolchain, loaded on the first job. */
 let toolchain = null;
 
 async function load(report) {
+  const { Z88dk } = await library;
   const manifest = await (await fetchOk(beside('manifest.json'))).json();
   const files = [
     ...Object.values(manifest.tools).map((tool) => tool.wasm),
