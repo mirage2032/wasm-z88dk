@@ -58,6 +58,8 @@ CXXFLAGS	:= $(OPT) -Wno-everything -ffile-prefix-map=$(ROOT)/=
 # synchronously, on a fresh instance: a process. -sWASM_ASYNC_COMPILATION=0 is
 # what makes that synchronous, so zcc's system() can wait for the tool it
 # starts. The filesystem is shared through PROXYFS (see z88dk.mjs).
+# NOTICE.txt repeats these, and m4's build below, for m4's licence (GPL): keep
+# it in step.
 LDFLAGS		:= $(OPT) \
 		   -sMODULARIZE=1 -sEXPORT_ES6=1 \
 		   -sENVIRONMENT=web,worker \
