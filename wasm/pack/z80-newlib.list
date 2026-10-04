@@ -1,0 +1,25 @@
+# What `zcc +z80 -clib=new` (sccz80, -lm) reads, relative to the z88dk install:
+# found by tracing a compile, plus every header, since a program may include
+# any. Directories are taken whole; *.bak files are left out.
+
+# zcc's configuration for the target
+lib/config/z80.cfg
+lib/config/tools.inc
+lib/config/alias.inc
+
+# copt's rules (-O3 uses .9, .2, .1 and .0)
+lib/z80rules.*
+
+# the libraries: the C library, the -lm maths, z80asm's own
+lib/clibs/sccz80/z80.lib
+lib/clibs/sccz80/math32.lib
+lib/z88dk-z80asm.lib
+
+# the start-up code, generated with m4 at every compile
+lib/z80_crt0.hdr
+lib/crt/newlib
+libsrc/newlib/target/z80
+src/m4/z88dk.m4
+
+# the headers
+include/_DEVELOPMENT/common
