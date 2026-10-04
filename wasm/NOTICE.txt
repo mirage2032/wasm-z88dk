@@ -1,0 +1,51 @@
+z88dk for WebAssembly: what these files are, and their licences
+================================================================
+
+The .mjs and .wasm files here are programs built with Emscripten; the .tar
+packs hold files from a built z88dk. Each comes from one of these:
+
+z88dk (zcc, z88dk-ucpp, z88dk-zpragma, z88dk-sccz80, z88dk-copt, z88dk-z80asm,
+and the libraries, headers and start-up code in the packs)
+    The Clarified Artistic License (and, for some files, the licence the file
+    itself states): https://github.com/z88dk/z88dk/blob/master/LICENSE
+    Built from z88dk's sources (https://github.com/z88dk/z88dk) with the
+    build in its wasm/ directory, which changes nothing in them; the one
+    difference from a native build is that z80asm's parser (the generated
+    src/z80asm/src/c/parse_rules.h) is compiled with most of its actions
+    dispatched from a table instead of a switch (wasm/parse_actions.mjs), so
+    that browsers can optimise it. It behaves the same.
+
+GNU m4 1.4.19 (m4)
+    GNU General Public License, version 3 or later:
+    https://www.gnu.org/licenses/gpl-3.0.html
+    Built, unmodified, from the release m4-1.4.19.tar.xz, which is next to
+    this file: its corresponding source. Also at
+    https://ftp.gnu.org/gnu/m4/m4-1.4.19.tar.xz
+
+Artistic Style 3.6.19 (astyle)
+    MIT License, Copyright (c) 2023 The Artistic Style Authors:
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the
+    "Software"), to deal in the Software without restriction, including
+    without limitation the rights to use, copy, modify, merge, publish,
+    distribute, sublicense, and/or sell copies of the Software, and to permit
+    persons to whom the Software is furnished to do so, subject to the
+    following conditions:
+
+    The above copyright notice and this permission notice shall be included
+    in all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+    OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+    NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+    DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+    OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+    USE OR OTHER DEALINGS IN THE SOFTWARE.
+    Source: https://sourceforge.net/projects/astyle/
+
+Emscripten's runtime and C/C++ libraries, linked into every program
+    MIT and University of Illinois/NCSA licences (Emscripten, musl), and
+    Apache-2.0 with LLVM exceptions (libc++, libc++abi, compiler-rt):
+    https://github.com/emscripten-core/emscripten/blob/main/LICENSE

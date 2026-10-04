@@ -229,15 +229,39 @@ export class Z88dk {
   }
 }
 
+/** Each tool's compiled WebAssembly, by its bytes: compiled once, not per run. */
+const compiled = new WeakMap();
+
 /**
  * Instantiates a module: synchronously, as the build compiles them, so by the
  * time this returns main() has run (unless `noInitialRun`) and `module` holds
  * the runtime (FS…). The factory's promise is only a formality then; a failure
  * also shows up through `onExit` or `onAbort`, so its rejection is dropped.
+ *
+ * Emscripten's synchronous path compiles `wasmBinary` with `new
+ * WebAssembly.Module` every time, which for z80asm's 5 MB is most of what
+ * starting it costs, three times a compile. So for exactly that one call the
+ * constructor answers with the module compiled the first time. It is put back
+ * before the program runs, so a tool starting another sets up its own.
  */
 function start(factory, module) {
-  const ready = factory(module);
-  ready?.catch?.(() => {});
+  const Native = WebAssembly.Module;
+  const bytes = module.wasmBinary;
+  WebAssembly.Module = function Module(binary) {
+    WebAssembly.Module = Native;
+    let wasm = compiled.get(bytes);
+    if (!wasm) {
+      wasm = new Native(binary);
+      compiled.set(bytes, wasm);
+    }
+    return wasm;
+  };
+  try {
+    const ready = factory(module);
+    ready?.catch?.(() => {});
+  } finally {
+    WebAssembly.Module = Native;
+  }
   if (!module.FS) throw new Error('the module did not start synchronously');
 }
 
