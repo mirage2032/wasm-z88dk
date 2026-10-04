@@ -72,8 +72,8 @@ make dist Z88DK=/path/to/native/z88dk  # + the pack, in build/dist: what a page 
 
 `build/dist` holds, flat: `worker.mjs`, `z88dk.mjs`, each tool's `.mjs` and `.wasm`, the pack, and
 `manifest.json` listing them with their sizes and SHA-256s; also `NOTICE.txt` (the licences) and m4's
-source tarball, which serving m4's binary obliges you to serve too (GPL-3.0). About 12 MB, 2.4 MB
-compressed; z80asm is most of it.
+source tarball, which serving m4's binary obliges you to serve too (GPL-3.0). About 12 MB to
+download: 1.9 MB with Brotli, 2.5 MB with gzip, mostly z80asm and the libraries.
 
 ## Using it
 
