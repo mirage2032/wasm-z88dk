@@ -62,7 +62,7 @@ LDFLAGS		:= $(OPT) \
 		   -sMODULARIZE=1 -sEXPORT_ES6=1 \
 		   -sENVIRONMENT=web,worker \
 		   -sWASM_ASYNC_COMPILATION=0 \
-		   -sALLOW_MEMORY_GROWTH=1 -sMAXIMUM_MEMORY=512MB \
+		   -sALLOW_MEMORY_GROWTH=1 -sMAXIMUM_MEMORY=128MB \
 		   -sSTACK_SIZE=4MB \
 		   -sEXIT_RUNTIME=1 \
 		   -sFORCE_FILESYSTEM=1 -lproxyfs.js \
@@ -107,13 +107,15 @@ dist: tools pack $(M4_TARBALL)
 	cp NOTICE.txt $(M4_TARBALL) $(DIST)/
 
 # Compiles test/programs with a native z88dk of the same commit (its Docker
-# image) and with build/dist, then compares all they made: it must match.
+# image) and with build/dist, then compares all they made: it must match. Then
+# the programs a native z88dk never finishes must stop here (test/limits.mjs).
 check: dist
 	rm -rf $(CHECK) && mkdir -p $(CHECK)/native
 	$(DOCKER) run --rm --entrypoint sh -v $(CURDIR)/test:/test:ro -v $(CHECK)/native:/out \
 		$(Z88DK_IMAGE) /test/native.sh /test/programs /out
 	$(NODE) test/wasm.mjs $(DIST) test/programs $(CHECK)/wasm
 	test/compare.sh $(CHECK)/native $(CHECK)/wasm
+	$(NODE) test/limits.mjs $(DIST)
 
 #------------------------------------------------------------------------------
 # z88dk's tools, from its sources
