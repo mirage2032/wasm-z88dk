@@ -22,8 +22,10 @@ EMCC		?= emcc
 EMXX		?= em++
 EMCONFIGURE	?= emconfigure
 EMMAKE		?= emmake
-# Node runs the build's scripts (emsdk brings one).
-NODE		?= $(or $(EMSDK_NODE),node)
+# Node runs the build's scripts: emsdk's own. Found through its environment,
+# else in its install, since `node` alone can name the directory emsdk puts on
+# the PATH (make, unlike sh, then stops).
+NODE		?= $(or $(EMSDK_NODE),$(firstword $(wildcard $(EMSDK)/node/*/bin/node)),node)
 DOCKER		?= docker
 
 ROOT		:= $(abspath ..)
