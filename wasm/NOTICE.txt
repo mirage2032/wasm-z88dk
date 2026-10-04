@@ -21,6 +21,22 @@ GNU m4 1.4.19 (m4)
     Built, unmodified, from the release m4-1.4.19.tar.xz, which is next to
     this file: its corresponding source. Also at
     https://ftp.gnu.org/gnu/m4/m4-1.4.19.tar.xz
+    Built with Emscripten 6.0.11, in the unpacked release, by these commands
+    (the wasm/ directory's Makefile runs the same):
+        emconfigure ./configure --build=$(sh build-aux/config.guess) \
+            --host=wasm32-unknown-emscripten --disable-nls \
+            --disable-threads --without-libsigsegv --disable-assert \
+            CFLAGS="-O2 -ffile-prefix-map=$PWD/=" \
+            CPPFLAGS="-include stddef.h"
+        emmake make -C lib
+        emmake make -C src m4
+        emcc -O2 -sMODULARIZE=1 -sEXPORT_ES6=1 -sENVIRONMENT=web,worker \
+            -sWASM_ASYNC_COMPILATION=0 -sALLOW_MEMORY_GROWTH=1 \
+            -sMAXIMUM_MEMORY=128MB -sSTACK_SIZE=4MB -sEXIT_RUNTIME=1 \
+            -sFORCE_FILESYSTEM=1 -lproxyfs.js \
+            -sEXPORTED_RUNTIME_METHODS=FS,PROXYFS,ENV \
+            -sINCOMING_MODULE_JS_API=arguments,thisProgram,preRun,print,printErr,stdin,wasmBinary,onExit,onAbort,noInitialRun \
+            -o m4.mjs src/*.o lib/libm4.a
 
 Artistic Style 3.6.19 (astyle)
     MIT License, Copyright (c) 2023 The Artistic Style Authors:
