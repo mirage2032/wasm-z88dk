@@ -49,8 +49,10 @@ Z88DK_IMAGE	?= z88dk/z88dk
 Z88DK_VERSION	?= $(shell git -C $(ROOT) rev-parse --short=10 HEAD 2>/dev/null || echo unknown)-wasm
 
 OPT		?= -O2
-CFLAGS		:= $(OPT) -Wno-everything
-CXXFLAGS	:= $(OPT) -Wno-everything
+# Source paths (in assertions' messages) relative to the tree, so the same
+# sources make the same files wherever they're built.
+CFLAGS		:= $(OPT) -Wno-everything -ffile-prefix-map=$(ROOT)/=
+CXXFLAGS	:= $(OPT) -Wno-everything -ffile-prefix-map=$(ROOT)/=
 
 # Every tool is an ES module exporting a factory. Instantiating it runs main()
 # synchronously, on a fresh instance: a process. -sWASM_ASYNC_COMPILATION=0 is
@@ -221,7 +223,7 @@ $(M4_SRC)/config.status: $(M4_TARBALL)
 	cd $(M4_SRC) && $(EMCONFIGURE) ./configure \
 		--build=$$(sh build-aux/config.guess) --host=wasm32-unknown-emscripten \
 		--disable-nls --disable-threads --without-libsigsegv --disable-assert \
-		CFLAGS="$(OPT)" CPPFLAGS="$(M4_CPPFLAGS)" > configure.log 2>&1 \
+		CFLAGS="$(OPT) -ffile-prefix-map=$(M4_SRC)/=" CPPFLAGS="$(M4_CPPFLAGS)" > configure.log 2>&1 \
 		|| { tail -40 configure.log; exit 1; }
 
 $(BIN)/m4.mjs: $(M4_SRC)/config.status
@@ -244,7 +246,7 @@ $(ASTYLE_SRC)/.unpacked: $(ASTYLE_TARBALL)
 $(BIN)/astyle.mjs: $(ASTYLE_SRC)/.unpacked
 	@mkdir -p $(OBJ)/astyle $(@D)
 	for f in $(ASTYLE_FILES); do \
-		$(EMXX) $(OPT) -DNDEBUG -fno-rtti -fno-exceptions -std=c++17 \
+		$(EMXX) $(OPT) -DNDEBUG -fno-rtti -fno-exceptions -std=c++17 -ffile-prefix-map=$(ASTYLE_SRC)/= \
 			-c -o $(OBJ)/astyle/$$f.o $(ASTYLE_SRC)/src/$$f.cpp || exit 1; \
 	done
 	$(EMXX) $(LDFLAGS) -o $@ $(ASTYLE_FILES:%=$(OBJ)/astyle/%.o)
