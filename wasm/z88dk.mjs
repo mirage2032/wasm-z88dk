@@ -29,6 +29,16 @@ const SHARED = ['/opt', '/tmp', '/work'];
 const NOT_FOUND = 127;
 const CRASHED = 134;
 
+/**
+ * The largest file a process may write, by default: what `ulimit -f` gave
+ * z88dk on a server. The files live in this thread's memory, so a program
+ * that writes without end (an endless macro expansion) is stopped here, with
+ * "File too large", rather than when the browser runs out of memory.
+ */
+const MAX_FILE = 16 * 1024 * 1024;
+/** Emscripten's errno for it (WASI's numbering). */
+const EFBIG = 22;
+
 export class Z88dk {
   /**
    * @param {Object<string, {factory: Function, wasm: ArrayBuffer}>} tools
@@ -36,10 +46,12 @@ export class Z88dk {
    *   .wasm, keyed by the name zcc runs it by (`zcc`, `z88dk-sccz80`, `m4`…).
    * @param {Object} [options]
    * @param {Object<string, string>} [options.env] Environment for every process.
+   * @param {number} [options.maxFile] The largest file a process may write.
    */
-  constructor(tools, { env = {} } = {}) {
+  constructor(tools, { env = {}, maxFile = MAX_FILE } = {}) {
     this.tools = tools;
     this.env = env;
+    this.maxFile = maxFile;
     // The root filesystem: any tool's, never run. The others mount it.
     const holder = Object.keys(tools)[0];
     this.root = {
@@ -139,7 +151,7 @@ export class Z88dk {
 
     let status;
     let crash;
-    const shared = trackingFs(this.fs);
+    const shared = trackingFs(this.fs, this.maxFile);
     const process = {
       arguments: argv.slice(1),
       thisProgram: argv[0],
@@ -218,6 +230,10 @@ export class Z88dk {
       }
     }
     const joined = concat(parts);
+    if (stdout?.append && (this.readFile(resolve(cwd, stdout.path))?.length ?? 0) + joined.length > this.maxFile) {
+      session.stderr.push('cat: write error: File too large');
+      return 1;
+    }
     if (!stdout) {
       session.stdout.push(new TextDecoder().decode(joined).replace(/\n$/, ''));
       return 0;
@@ -267,15 +283,20 @@ function start(factory, module) {
 
 /**
  * The root filesystem as PROXYFS reaches it, for one process: every file it
- * opens is noted, so the ones it never closes can be closed when it exits.
+ * opens is noted, so the ones it never closes can be closed when it exits, and
+ * no file grows past `maxFile`.
  */
-function trackingFs(fs) {
+function trackingFs(fs, maxFile) {
   const open = new Set();
   return Object.assign(Object.create(fs), {
     open(path, flags, mode) {
       const stream = fs.open(path, flags, mode);
       open.add(stream);
       return stream;
+    },
+    write(stream, buffer, offset, length, position, canOwn) {
+      if ((position ?? stream.position) + length > maxFile) throw new fs.ErrnoError(EFBIG);
+      return fs.write(stream, buffer, offset, length, position, canOwn);
     },
     close(stream) {
       open.delete(stream);

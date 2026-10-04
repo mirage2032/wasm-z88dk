@@ -43,6 +43,10 @@ compile):
   never writes them.
 - **Compiled once.** Each tool's WebAssembly is compiled the first time it runs and reused after
   (`start()` in `z88dk.mjs`), which makes a compile about three times faster in Chrome.
+- **Limits, as on a server.** No process may write a file over 16 MiB (`maxFile`; what `ulimit -f`
+  would have done), so an endless macro expansion stops with *File too large* instead of filling the
+  page's memory, and each tool's memory stops at 128 MB. A loop that writes nothing is the page's to
+  stop: terminate the worker.
 
 One build step reshapes code without changing it: z80asm's parser (ragel's
 `src/z80asm/src/c/parse_rules.h`) has a `switch` of ~15,800 actions in one function. In
@@ -109,7 +113,9 @@ make check Z88DK=/path/to/native/z88dk Z88DK_IMAGE=z88dk/z88dk@sha256:…
 then compares the exit status, both binaries, every message and the `-S` listing of each (only the
 version line, the compile time and temporary file names may differ). The programs cover errors on
 lines, link errors, warnings, programs too big for a 64 KB map, floats and `-lm`, the C library,
-`#pragma`s that change the start-up code, inline assembly and UTF-8 source.
+`#pragma`s that change the start-up code, inline assembly and UTF-8 source. Then `test/limits.mjs`
+checks that programs a native z88dk would compile forever (an endless macro expansion, an
+`#include` of `/dev/urandom` or of itself) stop here within seconds, with a reason.
 
 ## Updating z88dk
 
