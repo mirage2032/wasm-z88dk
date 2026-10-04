@@ -7,17 +7,24 @@
 # z88dk.mjs runs them like processes on one shared in-memory filesystem: see
 # README.md.
 #
-#   make                       the tools, in build/bin
-#   make pack Z88DK=/opt/z88dk the data pack, from a built z88dk (lib, include)
-#   make dist Z88DK=/opt/z88dk both, with z88dk.mjs and a manifest, in build/dist
+#   make                        the tools, in build/bin
+#   make pack  Z88DK=/opt/z88dk the libraries and headers, from a built z88dk
+#   make dist  Z88DK=/opt/z88dk what a page serves, in build/dist
+#   make check Z88DK=/opt/z88dk Z88DK_IMAGE=z88dk/z88dk@sha256:…
+#                               compiles test/programs natively and here, and
+#                               compares everything they made
 #
-# Needs emcc (emsdk) on the PATH, and curl, tar and sha256sum for m4 and astyle.
+# Needs emsdk (emcc on the PATH, and its Node), and curl, tar, xz, bzip2 and
+# sha256sum for m4 and astyle; `check` needs Docker.
 #------------------------------------------------------------------------------
 
 EMCC		?= emcc
 EMXX		?= em++
 EMCONFIGURE	?= emconfigure
 EMMAKE		?= emmake
+# Node runs the build's scripts (emsdk brings one).
+NODE		?= $(or $(EMSDK_NODE),node)
+DOCKER		?= docker
 
 ROOT		:= $(abspath ..)
 SRC		:= $(ROOT)/src
@@ -25,11 +32,16 @@ EXT		:= $(ROOT)/ext
 BUILD		:= $(abspath build)
 OBJ		:= $(BUILD)/obj
 BIN		:= $(BUILD)/bin
+PACKS		:= $(BUILD)/packs
 DIST		:= $(BUILD)/dist
+CHECK		:= $(BUILD)/check
+DOWNLOADS	:= $(BUILD)/downloads
 
-# A z88dk whose libraries were built natively from the same commit: the pack
-# takes its lib/, include/ and libsrc/ files (see pack.sh).
+# A z88dk whose libraries were built natively from the same commit, such as
+# z88dk's Docker image of it: the packs take its lib/, include/ and libsrc/
+# files (pack.sh). `check` compiles with that image.
 Z88DK		?= /opt/z88dk
+Z88DK_IMAGE	?= z88dk/z88dk
 
 # zcc prints this; sccz80 puts it in the code it writes.
 Z88DK_VERSION	?= $(shell git -C $(ROOT) rev-parse --short=10 HEAD 2>/dev/null || echo unknown)-wasm
@@ -46,7 +58,7 @@ LDFLAGS		:= $(OPT) \
 		   -sMODULARIZE=1 -sEXPORT_ES6=1 \
 		   -sENVIRONMENT=web,worker \
 		   -sWASM_ASYNC_COMPILATION=0 \
-		   -sALLOW_MEMORY_GROWTH=1 -sMAXIMUM_MEMORY=1GB \
+		   -sALLOW_MEMORY_GROWTH=1 -sMAXIMUM_MEMORY=512MB \
 		   -sSTACK_SIZE=4MB \
 		   -sEXIT_RUNTIME=1 \
 		   -sFORCE_FILESYSTEM=1 -lproxyfs.js \
@@ -55,9 +67,53 @@ LDFLAGS		:= $(OPT) \
 
 TOOLS		:= zcc z88dk-ucpp z88dk-zpragma z88dk-sccz80 z88dk-copt z88dk-z80asm m4 astyle
 
-.PHONY: all tools pack dist clean
+# Not part of z88dk: GNU m4, which zcc runs on the start-up code, and astyle,
+# which formats C. Release tarballs, checked against these hashes.
+M4_VERSION	:= 1.4.19
+M4_SHA256	:= 63aede5c6d33b6d9b13511cd0be2cac046f2e70fd0a07aa9573a04a82783af96
+M4_URLS		:= https://ftp.gnu.org/gnu/m4/m4-$(M4_VERSION).tar.xz \
+		   http://archive.ubuntu.com/ubuntu/pool/main/m/m4/m4_$(M4_VERSION).orig.tar.xz
+M4_TARBALL	:= $(DOWNLOADS)/m4-$(M4_VERSION).tar.xz
+
+ASTYLE_VERSION	:= 3.6.19
+ASTYLE_SHA256	:= ae5ef4ddf1f88288bcc8f6d53266707f80a81fcc6decf4da5fe5c8e420a0ab1c
+ASTYLE_URLS	:= https://downloads.sourceforge.net/project/astyle/astyle/astyle%203.6/astyle-$(ASTYLE_VERSION).tar.bz2
+ASTYLE_TARBALL	:= $(DOWNLOADS)/astyle-$(ASTYLE_VERSION).tar.bz2
+
+.PHONY: all tools pack dist check clean
 all: tools
 tools: $(TOOLS:%=$(BIN)/%.mjs)
+
+#------------------------------------------------------------------------------
+# What's made of the tools
+#------------------------------------------------------------------------------
+
+# The libraries, headers and start-up code `zcc +z80 -clib=new` reads, from a
+# z88dk built natively from the same commit (pack/z80-newlib.list).
+pack: $(PACKS)/z80-newlib.tar
+$(PACKS)/%.tar: pack/%.list pack.sh
+	@mkdir -p $(@D)
+	./pack.sh $(Z88DK) $< $@
+
+# What a page serves (see worker.mjs), with its manifest.json, and what has
+# to go with it: the licences, and m4's source (GPL; see NOTICE.txt).
+dist: tools pack $(M4_TARBALL)
+	rm -rf $(DIST)
+	$(NODE) dist.mjs $(BIN) $(PACKS) $(DIST) $(TOOLS)
+	cp NOTICE.txt $(M4_TARBALL) $(DIST)/
+
+# Compiles test/programs with a native z88dk of the same commit (its Docker
+# image) and with build/dist, then compares all they made: it must match.
+check: dist
+	rm -rf $(CHECK) && mkdir -p $(CHECK)/native
+	$(DOCKER) run --rm --entrypoint sh -v $(CURDIR)/test:/test:ro -v $(CHECK)/native:/out \
+		$(Z88DK_IMAGE) /test/native.sh /test/programs /out
+	$(NODE) test/wasm.mjs $(DIST) test/programs $(CHECK)/wasm
+	test/compare.sh $(CHECK)/native $(CHECK)/wasm
+
+#------------------------------------------------------------------------------
+# z88dk's tools, from its sources
+#------------------------------------------------------------------------------
 
 # The tools include it as "../config.h"; the top-level Makefile makes it the
 # same way for a native build.
@@ -106,7 +162,11 @@ z88dk-copt_SRCS	:= $(SRC)/copt/copt.c $(REGEX_COPT)
 z88dk-copt_CFLAGS := -std=gnu99 -DLOCAL_REGEXP -I$(SRC)/copt
 
 Z80ASM		:= $(SRC)/z80asm
-z88dk-z80asm_SRCS := $(filter-out $(Z80ASM)/src/c/test.c,$(wildcard $(Z80ASM)/src/c/*.c)) \
+# Its parser, reshaped so V8 can optimise it (parse_actions.mjs): parse1.c is
+# compiled from a copy beside the reshaped parse_rules.h it includes.
+Z80ASM_GEN	:= $(BUILD)/gen/z80asm
+z88dk-z80asm_SRCS := $(filter-out $(Z80ASM)/src/c/test.c $(Z80ASM)/src/c/parse1.c,$(wildcard $(Z80ASM)/src/c/*.c)) \
+		     $(Z80ASM_GEN)/parse1.c \
 		     $(wildcard $(SRC)/common/*.c) $(wildcard $(EXT)/regex/reg*.c) \
 		     $(wildcard $(Z80ASM)/src/*.cpp $(Z80ASM)/src/cpp/*.cpp)
 z88dk-z80asm_CFLAGS := -std=gnu11 -I$(Z80ASM) -I$(Z80ASM)/src -I$(SRC)/common -I$(Z80ASM)/src/c \
@@ -115,20 +175,14 @@ z88dk-z80asm_CXXFLAGS := -std=gnu++17 -I$(Z80ASM) -I$(Z80ASM)/src -I$(SRC)/commo
 
 $(foreach tool,zcc z88dk-ucpp z88dk-zpragma z88dk-sccz80 z88dk-copt z88dk-z80asm,$(eval $(call TOOL,$(tool))))
 
-#------------------------------------------------------------------------------
-# Not part of z88dk: GNU m4, which zcc runs on the start-up code, and astyle,
-# which formats C. Release tarballs, checked against these hashes.
-#------------------------------------------------------------------------------
-M4_VERSION	:= 1.4.19
-M4_SHA256	:= 63aede5c6d33b6d9b13511cd0be2cac046f2e70fd0a07aa9573a04a82783af96
-M4_URLS		:= https://ftp.gnu.org/gnu/m4/m4-$(M4_VERSION).tar.xz \
-		   http://archive.ubuntu.com/ubuntu/pool/main/m/m4/m4_$(M4_VERSION).orig.tar.xz
+$(Z80ASM_GEN)/parse1.c: $(Z80ASM)/src/c/parse1.c $(Z80ASM)/src/c/parse_rules.h parse_actions.mjs
+	@mkdir -p $(@D)
+	$(NODE) parse_actions.mjs $(Z80ASM)/src/c/parse_rules.h $(Z80ASM_GEN)/parse_rules.h
+	cp $(Z80ASM)/src/c/parse1.c $@
 
-ASTYLE_VERSION	:= 3.6.19
-ASTYLE_SHA256	:= ae5ef4ddf1f88288bcc8f6d53266707f80a81fcc6decf4da5fe5c8e420a0ab1c
-ASTYLE_URLS	:= https://downloads.sourceforge.net/project/astyle/astyle/astyle%203.6/astyle-$(ASTYLE_VERSION).tar.bz2
-
-DOWNLOADS	:= $(BUILD)/downloads
+#------------------------------------------------------------------------------
+# m4 and astyle, from their release tarballs
+#------------------------------------------------------------------------------
 
 # $(call fetch,file,sha256,urls): the first URL whose download has that hash.
 define fetch
@@ -142,24 +196,24 @@ define fetch
 	done; echo "no source for $(notdir $(1)) matched $(2)" >&2; exit 1
 endef
 
-$(DOWNLOADS)/m4-$(M4_VERSION).tar.xz:
+$(M4_TARBALL):
 	$(call fetch,$@,$(M4_SHA256),$(M4_URLS))
 
-$(DOWNLOADS)/astyle-$(ASTYLE_VERSION).tar.bz2:
+$(ASTYLE_TARBALL):
 	$(call fetch,$@,$(ASTYLE_SHA256),$(ASTYLE_URLS))
 
 # m4: configured for Emscripten as a cross-compile, so configure guesses
 # rather than running its test programs (under emconfigure they run in Node,
 # and some, like the one for nanosleep, never finish), then linked as the
-# other tools are. Native Language Support,
-# threads and the stack-overflow handler (libsigsegv) are left out: none can
-# work here, and the start-up code needs none of them.
+# other tools are. Native Language Support, threads and the stack-overflow
+# handler (libsigsegv) are left out: none can work here, and the start-up code
+# needs none of them.
 M4_SRC		:= $(BUILD)/m4-$(M4_VERSION)
 # Emscripten's <sys/random.h> uses size_t without including <stddef.h>, which
 # gnulib's getrandom.c doesn't include first.
 M4_CPPFLAGS	:= -include stddef.h
 
-$(M4_SRC)/config.status: $(DOWNLOADS)/m4-$(M4_VERSION).tar.xz
+$(M4_SRC)/config.status: $(M4_TARBALL)
 	rm -rf $(M4_SRC) && mkdir -p $(M4_SRC)
 	tar -xJf $< -C $(M4_SRC) --strip-components=1
 	cd $(M4_SRC) && $(EMCONFIGURE) ./configure \
@@ -180,7 +234,7 @@ $(BIN)/m4.mjs: $(M4_SRC)/config.status
 ASTYLE_SRC	:= $(BUILD)/astyle-$(ASTYLE_VERSION)
 ASTYLE_FILES	:= astyle_main ASBeautifier ASFormatter ASEnhancer ASLocalizer ASResource
 
-$(ASTYLE_SRC)/.unpacked: $(DOWNLOADS)/astyle-$(ASTYLE_VERSION).tar.bz2
+$(ASTYLE_SRC)/.unpacked: $(ASTYLE_TARBALL)
 	rm -rf $(ASTYLE_SRC) && mkdir -p $(ASTYLE_SRC)
 	tar -xjf $< -C $(ASTYLE_SRC) --strip-components=1
 	touch $@
@@ -194,4 +248,4 @@ $(BIN)/astyle.mjs: $(ASTYLE_SRC)/.unpacked
 	$(EMXX) $(LDFLAGS) -o $@ $(ASTYLE_FILES:%=$(OBJ)/astyle/%.o)
 
 clean:
-	rm -rf $(OBJ) $(BIN) $(DIST)
+	rm -rf $(OBJ) $(BIN) $(PACKS) $(DIST) $(CHECK) $(BUILD)/gen

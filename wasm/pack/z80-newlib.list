@@ -21,5 +21,10 @@ lib/crt/newlib
 libsrc/newlib/target/z80
 src/m4/z88dk.m4
 
+# printf's and scanf's cores, which the start-up code assembles from source
+# when a program narrows them (#pragma printf = "%d", lib/crt/newlib/clib_stubs.inc)
+libsrc/newlib/stdio/z80/asm_vfprintf_unlocked*.asm
+libsrc/newlib/stdio/z80/asm_vfscanf_unlocked*.asm
+
 # the headers
 include/_DEVELOPMENT/common
