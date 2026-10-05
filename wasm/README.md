@@ -4,9 +4,9 @@ z88dk's C compiler, running in a browser: `zcc` and the tools it drives, compile
 [Emscripten](https://emscripten.org), driven from a Web Worker. Nothing is compiled on a server, and
 the output is byte for byte what a native z88dk of the same commit makes (`make check` proves it).
 
-It lives on the `wasm` branch of [mirage2032/wasm-z88dk](https://github.com/mirage2032/wasm-z88dk), a
-fork of z88dk, and powers the C tab of the [Z80 emulator](https://lazyscript.com/projects/z80-emulator)
-on lazyscript.com.
+It lives in [mirage2032/wasm-z88dk](https://github.com/mirage2032/wasm-z88dk), a fork of z88dk, and
+powers the C tab of the [Z80 emulator](https://lazyscript.com/projects/z80-emulator) on
+lazyscript.com.
 
 What's built is what `zcc +z80 -clib=new` (sccz80, the new C library, `-lm`) needs:
 
@@ -128,6 +128,7 @@ Merge or rebase onto a newer z88dk, build the tools, and rebuild the pack from a
 commit's image. If ragel's output changes shape, `parse_actions.mjs` stops the build rather than
 guessing.
 
-This branch drops z88dk's own CI (`.github/`), which builds z88dk natively on every platform and
-publishes its Docker images: none of that is this branch's job. When a rebase brings changes to it,
-keep it deleted.
+This fork drops z88dk's own CI (`.github/`), which builds z88dk natively on every platform and
+publishes its Docker images: none of that is this fork's job. When a rebase brings changes to it,
+keep it deleted. Don't let GitHub's "Sync fork" discard this fork's commits to catch up with
+z88dk: rebase them instead.
