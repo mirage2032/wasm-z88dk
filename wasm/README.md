@@ -138,8 +138,11 @@ git tag v1.0.1 && git push origin v1.0.1   # or Actions → Release → Run work
 
 Merge or rebase onto a newer z88dk, build the tools, and rebuild the pack from a native build of the
 *same* commit (the libraries' object format follows z80asm's), then `make check` against that
-commit's image. If ragel's output changes shape, `parse_actions.mjs` stops the build rather than
-guessing. The release workflow pins that image too (`Z88DK_IMAGE`): it moves with the rebase.
+commit's image. z88dk publishes one for each push to its master that finishes building, tagged
+`sha-` and the commit's first seven hex digits (`z88dk/z88dk:sha-731173c`; its `zcc` prints the
+whole hash), so rebase onto a commit that has one. If ragel's output changes shape,
+`parse_actions.mjs` stops the build rather than guessing. The release workflow pins that image too,
+by digest (`Z88DK_IMAGE`): it moves with the rebase.
 
 This fork drops z88dk's own CI, which builds z88dk natively on every platform and publishes its
 Docker images: none of that is this fork's job, and `release.yml` is its only workflow. When a

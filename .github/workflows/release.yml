@@ -34,11 +34,11 @@ concurrency:
 env:
   # The Emscripten every program here is built with.
   EMSDK_VERSION: 6.0.11
-  # z88dk's own image of the commit this fork is based on (69d8e80601): the
-  # pack's libraries come from it, since z88dk builds them by running itself
-  # natively, and `make check` compares against it. It moves with every rebase
-  # onto a newer z88dk ("Updating z88dk" in wasm/README.md).
-  Z88DK_IMAGE: z88dk/z88dk@sha256:9423dff162f9e4e2f1c69424791612b0d866f1c8829953eb675396d2c9b380bf
+  # z88dk's own image of the commit this fork is based on (731173ca7f, tagged
+  # sha-731173c): the pack's libraries come from it, since z88dk builds them by
+  # running itself natively, and `make check` compares against it. It moves
+  # with every rebase onto a newer z88dk ("Updating z88dk" in wasm/README.md).
+  Z88DK_IMAGE: z88dk/z88dk@sha256:1270047fb95af5359a2a62317ce1740948905c334283663ee493108f7cbb2d6e
 
 jobs:
   build:
