@@ -9,11 +9,13 @@ and the libraries, headers and start-up code in the packs)
     The Clarified Artistic License (and, for some files, the licence the file
     itself states): https://github.com/z88dk/z88dk/blob/master/LICENSE
     Built from z88dk's sources (https://github.com/z88dk/z88dk) with the
-    build in its wasm/ directory, which changes nothing in them; the one
-    difference from a native build is that z80asm's parser (the generated
-    src/z80asm/src/c/parse_rules.h) is compiled with most of its actions
-    dispatched from a table instead of a switch (wasm/parse_actions.mjs), so
-    that browsers can optimise it. It behaves the same.
+    build in the wasm/ directory of the fork that carries it
+    (https://github.com/mirage2032/wasm-z88dk, branch wasm), which changes
+    nothing in them; the one difference from a native build is that
+    z80asm's parser (the generated src/z80asm/src/c/parse_rules.h) is
+    compiled with most of its actions dispatched from a table instead of a
+    switch (wasm/parse_actions.mjs), so that browsers can optimise it. It
+    behaves the same.
 
 GNU m4 1.4.19 (m4)
     GNU General Public License, version 3 or later:

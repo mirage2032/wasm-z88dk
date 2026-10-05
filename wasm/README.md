@@ -4,6 +4,10 @@ z88dk's C compiler, running in a browser: `zcc` and the tools it drives, compile
 [Emscripten](https://emscripten.org), driven from a Web Worker. Nothing is compiled on a server, and
 the output is byte for byte what a native z88dk of the same commit makes (`make check` proves it).
 
+It lives on the `wasm` branch of [mirage2032/wasm-z88dk](https://github.com/mirage2032/wasm-z88dk), a
+fork of z88dk, and powers the C tab of the [Z80 emulator](https://lazyscript.com/projects/z80-emulator)
+on lazyscript.com.
+
 What's built is what `zcc +z80 -clib=new` (sccz80, the new C library, `-lm`) needs:
 
 | Tool | From | What it does |
