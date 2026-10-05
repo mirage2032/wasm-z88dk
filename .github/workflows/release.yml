@@ -7,7 +7,8 @@ name: Release
 # lazyscript.com copies the latest release into the bucket its Z80 emulator
 # loads the compiler from.
 #
-# To release, tag a commit of master and push the tag:
+# To release a commit of master, either run this by hand (Actions → Release →
+# Run workflow) with its version, which tags the commit, or push the tag:
 #   git tag v1.0.1 && git push origin v1.0.1
 on:
   push:
@@ -15,15 +16,20 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      version:
+        description: To release this commit, its version (vX.Y.Z); empty only builds and checks
+        type: string
+        required: false
 
 permissions:
   contents: read
 
-# A newer push to a branch supersedes the run before it; a tag's run is a
-# release, and is never cancelled.
+# A newer push to a branch supersedes the run before it; a release (a tag's
+# run, or a version run by hand) has a group of its own, and is never cancelled.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+  group: ${{ github.workflow }}-${{ inputs.version || github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') && !inputs.version }}
 
 env:
   # The Emscripten every program here is built with.
@@ -40,17 +46,33 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       name: ${{ steps.package.outputs.name }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
-      # Only a tag of this form is a release: it is the file name, and what
-      # lazyscript.com's copy workflow expects.
-      - name: Tag
-        if: startsWith(github.ref, 'refs/tags/')
+      # A release is a version vX.Y.Z (the file name, and what lazyscript.com's
+      # copy workflow expects): a pushed tag, or one named when this is run by
+      # hand, from master, for a version not released yet.
+      - name: Version
+        id: version
+        env:
+          INPUT: ${{ inputs.version }}
         run: |
-          if [[ ! $GITHUB_REF_NAME =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::A release tag is vX.Y.Z, not $GITHUB_REF_NAME."; exit 1
+          version=
+          [[ $GITHUB_REF == refs/tags/* ]] && version=$GITHUB_REF_NAME
+          if [[ -n $INPUT ]]; then
+            version=$INPUT
+            if [[ $GITHUB_REF != refs/heads/master ]]; then
+              echo "::error::Releases are made from master, not $GITHUB_REF."; exit 1
+            fi
+            if git ls-remote --exit-code --tags origin "refs/tags/$version" > /dev/null; then
+              echo "::error::$version is released already."; exit 1
+            fi
           fi
+          if [[ -n $version && ! $version =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::A release is vX.Y.Z, not $version."; exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       # The three the tools are built from; the rest are for other parts of z88dk.
       - name: Submodules
@@ -91,8 +113,10 @@ jobs:
       # owners.
       - name: Package
         id: package
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          name=wasm-z88dk-$GITHUB_REF_NAME
+          name=wasm-z88dk-${VERSION:-$GITHUB_REF_NAME}
           name=${name//\//-}
           (cd wasm/build/dist && ls -1) > files
           tar -C wasm/build/dist --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
@@ -110,8 +134,8 @@ jobs:
           retention-days: 14
 
   release:
-    name: Publish ${{ github.ref_name }}
-    if: startsWith(github.ref, 'refs/tags/')
+    name: Publish ${{ needs.build.outputs.version }}
+    if: needs.build.outputs.version != ''
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -121,12 +145,15 @@ jobs:
         with:
           name: ${{ needs.build.outputs.name }}
 
+      # On the commit built: a pushed tag is there already, and a version
+      # named by hand becomes a tag there.
       - name: Release
         env:
           GH_TOKEN: ${{ github.token }}
           NAME: ${{ needs.build.outputs.name }}
+          VERSION: ${{ needs.build.outputs.version }}
         run: |
           sha256sum -c "$NAME.tar.gz.sha256"
-          gh release create "$GITHUB_REF_NAME" "$NAME.tar.gz" "$NAME.tar.gz.sha256" \
-            --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --latest \
+          gh release create "$VERSION" "$NAME.tar.gz" "$NAME.tar.gz.sha256" \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$VERSION" --latest \
             --notes "z88dk's C compiler for the browser, built from ${GITHUB_SHA::10} and checked against a native z88dk of the commit it is based on. \`$NAME.tar.gz\` is what a page serves, flat; \`wasm/README.md\` says how to use it."

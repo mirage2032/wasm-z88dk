@@ -124,13 +124,14 @@ checks that programs a native z88dk would compile forever (an endless macro expa
 ## Releasing
 
 `.github/workflows/release.yml` builds `build/dist` and runs `make check` on every push and pull
-request. Pushing a tag `vX.Y.Z` also publishes a GitHub release of that commit:
-`wasm-z88dk-vX.Y.Z.tar.gz`, `build/dist` as a page serves it (flat), and its `.sha256`. The tarball
-is the same bytes for the same commit. lazyscript.com puts the latest release on the site with a
-workflow of its own, by hand.
+request. To release a commit of master, run it by hand (Actions → Release → Run workflow) with the
+version, `vX.Y.Z`, or push that tag: it then also publishes a GitHub release of the commit,
+`wasm-z88dk-vX.Y.Z.tar.gz` (`build/dist` as a page serves it, flat) and its `.sha256`, tagging the
+commit if it isn't yet. The tarball is the same bytes for the same commit. lazyscript.com puts the
+latest release on the site with a workflow of its own, by hand.
 
 ```bash
-git tag v1.0.1 && git push origin v1.0.1
+git tag v1.0.1 && git push origin v1.0.1   # or Actions → Release → Run workflow, version v1.0.1
 ```
 
 ## Updating z88dk
