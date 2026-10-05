@@ -1,0 +1,132 @@
+name: Release
+
+# Builds the port (wasm/: z88dk's tools for WebAssembly, and the pack of
+# libraries they read), checks it against a native z88dk (`make check`), and,
+# for a tag vX.Y.Z, publishes it as a GitHub release: wasm-z88dk-vX.Y.Z.tar.gz,
+# what a page serves (wasm/build/dist, unpacked flat), with its SHA-256.
+# lazyscript.com copies the latest release into the bucket its Z80 emulator
+# loads the compiler from.
+#
+# To release, tag a commit of master and push the tag:
+#   git tag v1.0.1 && git push origin v1.0.1
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to a branch supersedes the run before it; a tag's run is a
+# release, and is never cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+env:
+  # The Emscripten every program here is built with.
+  EMSDK_VERSION: 6.0.11
+  # z88dk's own image of the commit this fork is based on (69d8e80601): the
+  # pack's libraries come from it, since z88dk builds them by running itself
+  # natively, and `make check` compares against it. It moves with every rebase
+  # onto a newer z88dk ("Updating z88dk" in wasm/README.md).
+  Z88DK_IMAGE: z88dk/z88dk@sha256:9423dff162f9e4e2f1c69424791612b0d866f1c8829953eb675396d2c9b380bf
+
+jobs:
+  build:
+    name: Build and check
+    runs-on: ubuntu-latest
+    outputs:
+      name: ${{ steps.package.outputs.name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Only a tag of this form is a release: it is the file name, and what
+      # lazyscript.com's copy workflow expects.
+      - name: Tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          if [[ ! $GITHUB_REF_NAME =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::A release tag is vX.Y.Z, not $GITHUB_REF_NAME."; exit 1
+          fi
+
+      # The three the tools are built from; the rest are for other parts of z88dk.
+      - name: Submodules
+        run: git submodule update --init --depth 1 ext/optparse ext/regex ext/uthash
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/emsdk
+          key: emsdk-${{ env.EMSDK_VERSION }}
+
+      - name: Emscripten
+        run: |
+          emsdk=$RUNNER_TEMP/emsdk
+          [[ -d $emsdk ]] || git clone -q --depth 1 https://github.com/emscripten-core/emsdk.git "$emsdk"
+          "$emsdk/emsdk" install "$EMSDK_VERSION"
+          "$emsdk/emsdk" activate "$EMSDK_VERSION"
+
+      # What pack/z80-newlib.list takes from an install: pack.sh stops the build
+      # if anything it names is missing.
+      - name: z88dk's libraries, from its image
+        run: |
+          mkdir -p "$RUNNER_TEMP/z88dk"
+          docker run --rm --entrypoint sh -v "$RUNNER_TEMP/z88dk:/out" "$Z88DK_IMAGE" -c '
+            cd /opt/z88dk && tar -cf - lib/config lib/crt lib/clibs/sccz80 lib/z80rules.* \
+              lib/z80_crt0.hdr lib/z88dk-z80asm.lib libsrc/newlib include src/m4 | tar -xf - -C /out'
+
+      - name: Build
+        run: |
+          source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
+          make -C wasm -j"$(nproc)" dist Z88DK="$RUNNER_TEMP/z88dk"
+
+      - name: Check against a native z88dk
+        run: |
+          source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
+          make -C wasm check Z88DK="$RUNNER_TEMP/z88dk" Z88DK_IMAGE="$Z88DK_IMAGE"
+
+      # Flat, and the same bytes for the same build: sorted, no timestamps or
+      # owners.
+      - name: Package
+        id: package
+        run: |
+          name=wasm-z88dk-$GITHUB_REF_NAME
+          name=${name//\//-}
+          (cd wasm/build/dist && ls -1) > files
+          tar -C wasm/build/dist --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
+            -czf "$name.tar.gz" -T files
+          sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
+          cat "$name.tar.gz.sha256"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: |
+            ${{ steps.package.outputs.name }}.tar.gz
+            ${{ steps.package.outputs.name }}.tar.gz.sha256
+          retention-days: 14
+
+  release:
+    name: Publish ${{ github.ref_name }}
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.name }}
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NAME: ${{ needs.build.outputs.name }}
+        run: |
+          sha256sum -c "$NAME.tar.gz.sha256"
+          gh release create "$GITHUB_REF_NAME" "$NAME.tar.gz" "$NAME.tar.gz.sha256" \
+            --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --latest \
+            --notes "z88dk's C compiler for the browser, built from ${GITHUB_SHA::10} and checked against a native z88dk of the commit it is based on. \`$NAME.tar.gz\` is what a page serves, flat; \`wasm/README.md\` says how to use it."

@@ -121,14 +121,26 @@ lines, link errors, warnings, programs too big for a 64 KB map, floats and `-lm`
 checks that programs a native z88dk would compile forever (an endless macro expansion, an
 `#include` of `/dev/urandom` or of itself) stop here within seconds, with a reason.
 
+## Releasing
+
+`.github/workflows/release.yml` builds `build/dist` and runs `make check` on every push and pull
+request. Pushing a tag `vX.Y.Z` also publishes a GitHub release of that commit:
+`wasm-z88dk-vX.Y.Z.tar.gz`, `build/dist` as a page serves it (flat), and its `.sha256`. The tarball
+is the same bytes for the same commit. lazyscript.com puts the latest release on the site with a
+workflow of its own, by hand.
+
+```bash
+git tag v1.0.1 && git push origin v1.0.1
+```
+
 ## Updating z88dk
 
 Merge or rebase onto a newer z88dk, build the tools, and rebuild the pack from a native build of the
 *same* commit (the libraries' object format follows z80asm's), then `make check` against that
 commit's image. If ragel's output changes shape, `parse_actions.mjs` stops the build rather than
-guessing.
+guessing. The release workflow pins that image too (`Z88DK_IMAGE`): it moves with the rebase.
 
-This fork drops z88dk's own CI (`.github/`), which builds z88dk natively on every platform and
-publishes its Docker images: none of that is this fork's job. When a rebase brings changes to it,
-keep it deleted. Don't let GitHub's "Sync fork" discard this fork's commits to catch up with
-z88dk: rebase them instead.
+This fork drops z88dk's own CI, which builds z88dk natively on every platform and publishes its
+Docker images: none of that is this fork's job, and `release.yml` is its only workflow. When a
+rebase brings changes to z88dk's workflows, keep them deleted. Don't let GitHub's "Sync fork"
+discard this fork's commits to catch up with z88dk: rebase them instead.
