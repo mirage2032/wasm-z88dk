@@ -26,7 +26,10 @@ EMMAKE		?= emmake
 # else in its install, since `node` alone can name the directory emsdk puts on
 # the PATH (make, unlike sh, then stops).
 NODE		?= $(or $(EMSDK_NODE),$(firstword $(wildcard $(EMSDK)/node/*/bin/node)),node)
-DOCKER		?= docker
+# Docker, for `check`: found by the shell, which skips directories. emsdk's
+# environment puts its own folder on the PATH, and that holds one named docker,
+# which make, searching the PATH itself, would try to run.
+DOCKER		?= $(or $(shell command -v docker),docker)
 
 ROOT		:= $(abspath ..)
 SRC		:= $(ROOT)/src
