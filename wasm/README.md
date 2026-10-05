@@ -127,3 +127,7 @@ Merge or rebase onto a newer z88dk, build the tools, and rebuild the pack from a
 *same* commit (the libraries' object format follows z80asm's), then `make check` against that
 commit's image. If ragel's output changes shape, `parse_actions.mjs` stops the build rather than
 guessing.
+
+This branch drops z88dk's own CI (`.github/`), which builds z88dk natively on every platform and
+publishes its Docker images: none of that is this branch's job. When a rebase brings changes to it,
+keep it deleted.
